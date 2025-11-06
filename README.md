@@ -102,4 +102,3 @@ Then parse `.value[].eventTimestamp` for creation times.
 
 ---
 
-Would you like me to give you a **combined CLI script** that lists *all resource groups with their creation timestamps (fetched from Activity Log)* into a **CSV file** for reporting?
