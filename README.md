@@ -1,3 +1,96 @@
+Excellent — you’re asking how to get the **creation timestamp (or last modified time)** of Azure Resource Groups using the **Azure Resource Manager (ARM) REST API** via PowerShell.
+
+Let’s go step-by-step 👇
+
+---
+
+## 🧠 Background
+
+Azure Resource Groups themselves **do not store a `createdTime` field** in the standard `az group list` or `Get-AzResourceGroup` output.
+However, you can fetch that metadata from the **Azure Management REST API** using:
+
+```
+GET https://management.azure.com/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}?api-version=2021-04-01
+```
+
+The response contains a property under:
+
+```
+"properties": {
+  "provisioningState": "Succeeded",
+  "createdTime": "2025-11-04T14:32:19.4047683Z",
+  "changedTime": "2025-11-06T18:15:12.8757461Z",
+  "tags": {},
+  "resourceGroupType": "Default"
+}
+```
+
+Those `createdTime` and `changedTime` are what you’re after.
+
+---
+
+## ⚙️ PowerShell Script
+
+Here’s a full working script that authenticates, loops through all resource groups in your subscription, and displays timestamps:
+
+```powershell
+# Variables
+$subscriptionId = "<your-subscription-id>"
+$apiVersion = "2021-04-01"
+
+# Login if needed
+Connect-AzAccount
+Set-AzContext -SubscriptionId $subscriptionId
+
+# Get access token for the REST call
+$token = (Get-AzAccessToken -ResourceUrl "https://management.azure.com").Token
+
+# Get all resource groups in the subscription
+$resourceGroups = Get-AzResourceGroup
+
+# Create an array to hold results
+$result = @()
+
+foreach ($rg in $resourceGroups) {
+    $url = "https://management.azure.com/subscriptions/$subscriptionId/resourcegroups/$($rg.ResourceGroupName)?api-version=$apiVersion"
+    $response = Invoke-RestMethod -Uri $url -Headers @{ Authorization = "Bearer $token" } -Method GET
+    $result += [PSCustomObject]@{
+        ResourceGroupName = $rg.ResourceGroupName
+        Location          = $rg.Location
+        CreatedTime       = $response.properties.createdTime
+        ChangedTime       = $response.properties.changedTime
+        ProvisioningState = $response.properties.provisioningState
+    }
+}
+
+# Display result
+$result | Format-Table -AutoSize
+```
+
+---
+
+## 📊 Optional: Export to CSV
+
+If you want to store the output:
+
+```powershell
+$result | Export-Csv -Path "C:\Temp\ResourceGroupTimestamps.csv" -NoTypeInformation
+```
+
+---
+
+## 🧩 Sample Output
+
+| ResourceGroupName | Location | CreatedTime             | ChangedTime             | ProvisioningState |
+| ----------------- | -------- | ----------------------- | ----------------------- | ----------------- |
+| rg-network-prod   | eastus   | 2025-10-30T13:42:51.74Z | 2025-11-05T17:01:10.13Z | Succeeded         |
+| rg-storage-dev    | westus2  | 2025-09-25T11:20:19.31Z | 2025-11-03T09:44:07.44Z | Succeeded         |
+
+---
+
+Would you like me to modify this script to **also include the user (principal) who created each resource group** (via Activity Log lookup)? That’s possible but requires an additional API call.
+
+
 Excellent question — and a common point of confusion!
 Azure **does not directly store “createdDate” or “createdTime”** as a visible property of Resource Groups.
 However, you can **derive or retrieve it** in a few reliable ways using **Activity Logs**, **Azure CLI**, **PowerShell**, or **Resource Graph**.
